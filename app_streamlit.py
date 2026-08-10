@@ -1,7 +1,6 @@
 # ─────────────────────────────────────────────
-#  app_streamlit.py — Interactive Streamlit Dashboard
-#  Domain: AI Agent Tools & Runtime Capabilities Explorer
-#  Demonstrates: Streamlit Widgets, Data Visualization, User Interaction, and REST API Integration
+#  app_streamlit.py — OAW Streamlit Management Dashboard
+#  Clean, Modern, 100% Functional Implementation for Lab Project
 # ─────────────────────────────────────────────
 
 import os
@@ -11,315 +10,285 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+# ── Configuration & Paths ──────────────────────────────────────────────────
 API_URL = "http://127.0.0.1:5000/api/records"
-LOCAL_DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "dataset.json")
+DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "dataset.json")
 
-# ── Page Config & Custom Styling ─────────────────────────────────────────────
 st.set_page_config(
-    page_title="AI Agent Tools Dashboard",
-    page_icon="🤖",
+    page_title="OAW Dashboard",
+    page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded"
 )
 
+# ── Custom Premium Styling ─────────────────────────────────────────────────
 st.markdown("""
 <style>
-    .main-title { font-size: 2.2rem; font-weight: 700; color: #a78bfa; margin-bottom: 0.2rem; }
-    .sub-title { font-size: 1rem; color: #94a3b8; margin-bottom: 1.5rem; }
-    .card { background-color: #1e293b; padding: 1rem; border-radius: 8px; border: 1px solid #334155; }
+    /* Global Container Adjustments */
+    .block-container { padding-top: 1.8rem; padding-bottom: 2rem; }
+    
+    /* Header Card */
+    .hero-container {
+        background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+        border: 1px solid #312e81;
+        border-radius: 12px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.5rem;
+    }
+    .hero-title { font-size: 2rem; font-weight: 800; color: #f8fafc; margin-bottom: 0.2rem; }
+    .hero-sub { font-size: 0.95rem; color: #a5b4fc; margin-bottom: 0; }
+    
+    /* Metric Cards */
+    [data-testid="stMetric"] {
+        background-color: #1e293b;
+        border: 1px solid #334155;
+        padding: 1rem;
+        border-radius: 10px;
+    }
+    
+    /* Tab Styling */
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #1e293b;
+        border-radius: 8px;
+        padding: 8px 16px;
+        color: #94a3b8;
+        border: 1px solid #334155;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #4f46e5 !important;
+        color: #ffffff !important;
+        border-color: #6366f1 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ── Data Loading & API Fallback Helper ──────────────────────────────────────
+# ── Data Helper Functions ──────────────────────────────────────────────────
 
-def fetch_data() -> tuple[pd.DataFrame, bool]:
-    """Fetch records from Flask REST API or fallback to local JSON file."""
+def load_dataset() -> tuple[pd.DataFrame, str]:
+    """Load data from Flask API if online, or fallback cleanly to dataset.json."""
     try:
-        res = requests.get(API_URL, timeout=2)
+        res = requests.get(API_URL, timeout=1.5)
         if res.status_code == 200:
             records = res.json().get("records", [])
-            df = pd.DataFrame(records)
-            return df, True
+            return pd.DataFrame(records), "REST API"
     except Exception:
         pass
 
-    # Fallback to local JSON file
-    if os.path.exists(LOCAL_DATA_FILE):
-        with open(LOCAL_DATA_FILE, "r", encoding="utf-8") as f:
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
             records = json.load(f)
-            return pd.DataFrame(records), False
+            return pd.DataFrame(records), "JSON Dataset"
 
-    return pd.DataFrame(), False
+    return pd.DataFrame(), "Empty"
 
 
-# ── Main Application ────────────────────────────────────────────────────────
+# ── Application Main ───────────────────────────────────────────────────────
 
 def main():
-    st.markdown('<div class="main-title">🤖 AI Agent Tools & Runtime Dashboard</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-title">Interactive Streamlit Web Application — REST API & Data Visualization</div>', unsafe_allow_html=True)
+    # 1. Hero Header
+    st.markdown("""
+    <div class="hero-container">
+        <div class="hero-title">⚡ OAW — Observable Agent Runtime Dashboard</div>
+        <div class="hero-sub">Interactive Web Management & Analytics Platform</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    df, is_api_online = fetch_data()
-
-    # Connection Status Banner
-    if is_api_online:
-        st.sidebar.success("🟢 Connected to Flask REST API (http://127.0.0.1:5000)")
-    else:
-        st.sidebar.warning("🟡 API Server Offline — Using Local `dataset.json` Storage")
+    df, source_mode = load_dataset()
 
     if df.empty:
-        st.error("No dataset records found. Please check data/dataset.json.")
+        st.error("No dataset records found in data/dataset.json.")
         return
 
-    # ── Sidebar Widgets & Filters (User Interaction) ─────────────────────────
-    st.sidebar.header("🔍 Filter & Interaction Widgets")
-
-    # 1. Search text input
-    search_query = st.sidebar.text_input("Search by Name / Description", placeholder="e.g. search, python, api...")
-
-    # 2. Selectbox for Category
+    # 2. Sidebar Filters (Streamlit Widgets Requirement)
+    st.sidebar.markdown("### 🎛️ Filter Controls")
+    
+    search_term = st.sidebar.text_input("🔍 Search Tools", placeholder="e.g. search, code, api...")
+    
     categories = ["All Categories"] + sorted(list(df["category"].dropna().unique()))
-    selected_category = st.sidebar.selectbox("Filter by Category", categories)
+    selected_cat = st.sidebar.selectbox("Category", categories)
+    
+    statuses = ["All Statuses"] + list(df["status"].dropna().unique())
+    selected_status = st.sidebar.selectbox("Status", statuses)
+    
+    max_count = int(df["usage_count"].max()) if not df.empty else 500
+    min_usage = st.sidebar.slider("Minimum Usage Count", 0, max_count, 0, step=10)
 
-    # 3. Radio button for Status
-    statuses = ["All"] + list(df["status"].dropna().unique())
-    selected_status = st.sidebar.radio("Filter by Tool Status", statuses)
-
-    # 4. Slider for Minimum Usage Count
-    max_usage = int(df["usage_count"].max()) if not df.empty else 1000
-    min_usage = st.sidebar.slider("Minimum Usage Count", min_value=0, max_value=max_usage, value=0, step=10)
-
-    # Apply filters
+    # Filter logic
     filtered_df = df.copy()
-    if search_query:
+    if search_term:
         filtered_df = filtered_df[
-            filtered_df["name"].str.contains(search_query, case=False, na=False) |
-            filtered_df["description"].str.contains(search_query, case=False, na=False)
+            filtered_df["name"].str.contains(search_term, case=False, na=False) |
+            filtered_df["description"].str.contains(search_term, case=False, na=False)
         ]
-    if selected_category != "All Categories":
-        filtered_df = filtered_df[filtered_df["category"] == selected_category]
-    if selected_status != "All":
+    if selected_cat != "All Categories":
+        filtered_df = filtered_df[filtered_df["category"] == selected_cat]
+    if selected_status != "All Statuses":
         filtered_df = filtered_df[filtered_df["status"] == selected_status]
     filtered_df = filtered_df[filtered_df["usage_count"] >= min_usage]
 
-    # ── Metric Summary Cards ────────────────────────────────────────────────
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Registered Tools", len(df))
-    with col2:
-        st.metric("Filtered Records", len(filtered_df))
-    with col3:
-        avg_rating = round(df["rating"].mean(), 2) if not df.empty else 0
-        st.metric("Average Rating", f"⭐ {avg_rating}")
-    with col4:
-        total_usage = df["usage_count"].sum() if not df.empty else 0
-        st.metric("Total Execution Count", f"{total_usage:,}")
+    # 3. Metric Overview Cards
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Total Agent Tools", len(df))
+    with c2:
+        st.metric("Filtered View", len(filtered_df))
+    with c3:
+        avg_rat = round(df["rating"].mean(), 2) if not df.empty else 0.0
+        st.metric("Average Rating", f"⭐ {avg_rat}")
+    with c4:
+        tot_usage = df["usage_count"].sum() if not df.empty else 0
+        st.metric("Total Executions", f"{tot_usage:,}")
 
-    st.markdown("---")
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Data Visualizations (Plotly Charts) ──────────────────────────────────
-    st.subheader("📊 Analytics & Data Visualizations")
+    # 4. Data Visualizations (Plotly Requirement)
+    col_left, col_right = st.columns([1.2, 0.8])
 
-    chart_col1, chart_col2 = st.columns(2)
-
-    with chart_col1:
-        st.markdown("**Tool Usage Count by Name**")
+    with col_left:
+        st.markdown("#### 📊 Execution Usage by Tool")
         fig_bar = px.bar(
             filtered_df,
             x="name",
             y="usage_count",
             color="category",
             hover_data=["status", "rating"],
-            title="Usage Count per Agent Tool",
-            color_discrete_sequence=px.colors.qualitative.Pastel
+            labels={"name": "Agent Tool", "usage_count": "Executions"},
+            color_discrete_sequence=px.colors.qualitative.Bold
         )
-        fig_bar.update_layout(xaxis_tickangle=-45, height=400)
+        fig_bar.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=340,
+            margin=dict(l=10, r=10, t=20, b=20)
+        )
         st.plotly_chart(fig_bar, use_container_width=True)
 
-    with chart_col2:
-        st.markdown("**Distribution of Tool Statuses**")
-        status_counts = filtered_df["status"].value_counts().reset_index()
-        status_counts.columns = ["Status", "Count"]
+    with col_right:
+        st.markdown("#### 🎯 Status Breakdown")
+        status_df = filtered_df["status"].value_counts().reset_index()
+        status_df.columns = ["Status", "Count"]
         fig_pie = px.pie(
-            status_counts,
+            status_df,
             values="Count",
             names="Status",
-            hole=0.4,
-            title="Status Distribution",
+            hole=0.45,
             color_discrete_sequence=px.colors.sequential.Purples_r
         )
-        fig_pie.update_layout(height=400)
+        fig_pie.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=340,
+            margin=dict(l=10, r=10, t=20, b=20)
+        )
         st.plotly_chart(fig_pie, use_container_width=True)
 
-    st.markdown("---")
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Dataset Table & Interactive CRUD ─────────────────────────────────────
-    st.subheader("📑 Interactive Dataset & CRUD Operations")
+    # 5. Lab Modules Tabs (Clean User Interactions & File Operations)
+    tab_records, tab_add, tab_files = st.tabs([
+        "📋 Agent Tools Records",
+        "➕ Add New Tool",
+        "📁 File Handling & RegEx Lab Module"
+    ])
 
-    tab1, tab2, tab3 = st.tabs(["📋 View & Edit Records", "➕ Add New Tool Record", "❌ Delete Record"])
+    # Tab 1: Dataset Table
+    with tab_records:
+        st.dataframe(
+            filtered_df[["id", "name", "category", "status", "usage_count", "rating", "description"]],
+            use_container_width=True,
+            hide_index=True
+        )
 
-    with tab1:
-        st.markdown("Use the interactive data editor below to explore and update tool ratings:")
-        st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+    # Tab 2: Add New Record Form
+    with tab_add:
+        st.markdown("##### Add New Agent Tool Record")
+        with st.form("add_tool_form", clear_on_submit=True):
+            f_col1, f_col2 = st.columns(2)
+            with f_col1:
+                t_name = st.text_input("Tool Name", placeholder="e.g. Vision Transformer Tool")
+                t_cat = st.selectbox("Category", ["Information Retrieval", "Code & Compute", "Network & Integration", "Memory & State", "Multimodal", "Database & Storage"])
+            with f_col2:
+                t_status = st.selectbox("Status", ["Active", "Beta", "Deprecated"])
+                t_rating = st.slider("Rating", 1.0, 5.0, 4.5, step=0.1)
 
-    with tab2:
-        st.markdown("### Add New Tool Record (POST endpoint integration)")
-        with st.form("add_tool_form"):
-            new_name = st.text_input("Tool Name", placeholder="e.g. Vision Transformer Tool")
-            new_cat = st.selectbox("Category", ["Information Retrieval", "Code & Compute", "Network & Integration", "Memory & State", "Multimodal", "Database & Storage", "System Utilities"])
-            new_desc = st.text_area("Description", placeholder="Provide a brief functional summary...")
-            new_status = st.radio("Status", ["Active", "Beta", "Deprecated"], horizontal=True)
-            new_usage = st.number_input("Initial Usage Count", min_value=0, value=10)
-            new_rating = st.slider("Tool Rating", min_value=1.0, max_value=5.0, value=4.5, step=0.1)
-
-            submitted = st.form_submit_button("Submit New Record")
-            if submitted:
-                if not new_name or not new_desc:
-                    st.error("Please provide both Name and Description.")
+            t_desc = st.text_area("Description", placeholder="Functional description of what the tool accomplishes...")
+            
+            sub = st.form_submit_button("Submit Record", type="primary")
+            if sub:
+                if not t_name or not t_desc:
+                    st.error("Please fill in both Tool Name and Description.")
                 else:
                     payload = {
-                        "name": new_name,
-                        "category": new_cat,
-                        "description": new_desc,
-                        "status": new_status,
-                        "usage_count": new_usage,
-                        "rating": new_rating
+                        "name": t_name,
+                        "category": t_cat,
+                        "description": t_desc,
+                        "status": t_status,
+                        "usage_count": 10,
+                        "rating": t_rating
                     }
-                    if is_api_online:
-                        res = requests.post(API_URL, json=payload)
+                    try:
+                        res = requests.post(API_URL, json=payload, timeout=2)
                         if res.status_code == 201:
-                            st.success(f"Record '{new_name}' created successfully via Flask API!")
+                            st.success(f"Record '{t_name}' created successfully via Flask API!")
                             st.rerun()
                         else:
                             st.error(f"API Error: {res.text}")
+                    except Exception:
+                        st.info("Flask API server is offline. Run 'python server.py' to persist additions.")
+
+    # Tab 3: Lab File Handling & RegEx Module
+    with tab_files:
+        st.markdown("##### File Handling & RegEx Input Validation Module")
+        
+        from file_manager import (
+            read_all_records, append_record, create_backup,
+            validate_id, validate_email, validate_date, validate_tool_code
+        )
+
+        sub_tab1, sub_tab2 = st.tabs(["📄 Read File Records & Backup", "📝 Add Line with RegEx Check"])
+
+        with sub_tab1:
+            records = read_all_records()
+            if records:
+                st.text_area("Text File Content (data/records.txt)", value="".join(records), height=140, disabled=True)
+            
+            if st.button("💾 Generate File Backup (records_backup.txt)"):
+                msg = create_backup()
+                st.success(msg)
+
+        with sub_tab2:
+            with st.form("regex_form"):
+                r_id = st.text_input("Record ID (RegEx: 1-5 digits)", value="105")
+                r_code = st.text_input("Tool Code (RegEx: e.g. OAW-105)", value="OAW-105")
+                r_name = st.text_input("Tool Name", value="File System Tool")
+                r_email = st.text_input("Email (RegEx: name@domain.com)", value="dev@oaw.io")
+                r_date = st.text_input("Date (RegEx: YYYY-MM-DD)", value="2026-08-10")
+                r_status = st.selectbox("Status", ["Active", "Beta", "Deprecated"])
+
+                if st.form_submit_button("Validate RegEx & Append Line"):
+                    errs = []
+                    if not validate_id(r_id):
+                        errs.append("Invalid ID format (must be digits).")
+                    if not validate_tool_code(r_code):
+                        errs.append("Invalid Tool Code format (e.g. OAW-105).")
+                    if not validate_email(r_email):
+                        errs.append("Invalid Email format (name@domain.com).")
+                    if not validate_date(r_date):
+                        errs.append("Invalid Date format (YYYY-MM-DD).")
+
+                    if errs:
+                        for e in errs:
+                            st.error(e)
                     else:
-                        st.info("API is offline. Run server.py to persist mutations via REST API.")
-
-    with tab3:
-        st.markdown("### Delete Record (DELETE endpoint integration)")
-        record_to_delete = st.selectbox(
-            "Select Record to Remove",
-            options=df["id"].tolist(),
-            format_func=lambda x: f"ID {x}: {df[df['id'] == x]['name'].values[0]}" if not df[df['id'] == x].empty else str(x)
-        )
-        if st.button("Confirm Delete Record", type="primary"):
-            if is_api_online:
-                res = requests.delete(f"{API_URL}/{record_to_delete}")
-                if res.status_code == 200:
-                    st.success(f"Record ID {record_to_delete} deleted successfully!")
-                    st.rerun()
-                else:
-                    st.error(f"Delete Error: {res.text}")
-            else:
-                st.warning("API Server offline. Please start server.py to execute DELETE calls.")
-
-    # ── Section 4: File Handling & RegEx Validation Lab Module ────────────────
-    st.markdown("---")
-    st.subheader("📁 Lab Module: File Handling & RegEx Validation")
-
-    from file_manager import (
-        read_all_records, append_record, search_record, update_record,
-        delete_record, create_backup, process_file_with_prompt,
-        validate_id, validate_email, validate_date, validate_tool_code
-    )
-
-    ftab1, ftab2, ftab3, ftab4 = st.tabs([
-        "📄 File Records Viewer",
-        "📤 Upload File & AI Prompt Processor",
-        "🔍 RegEx Input Validation & Append",
-        "💾 Backup File"
-    ])
-
-    with ftab1:
-        st.markdown("### Text File Storage (`data/records.txt`)")
-        file_lines = read_all_records()
-        if file_lines:
-            file_df = pd.DataFrame([l.strip().split("|") for l in file_lines], columns=["ID", "Tool Code", "Name", "Email", "Date", "Status"])
-            st.dataframe(file_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("File is empty.")
-
-    with ftab2:
-        st.markdown("### 📤 Upload File & Apply Natural Language Prompt Modifications")
-        st.markdown("Upload any text record file (`.txt`), enter a prompt instruction, and the app will modify, back up, and save the updated file on disk.")
-
-        uploaded_file = st.file_uploader("Upload Text Record File", type=["txt", "csv"])
-
-        preset_prompt = st.selectbox(
-            "Select Prompt Transformation Preset",
-            [
-                "Custom Prompt Input...",
-                "Convert all email addresses to UPPERCASE",
-                "Format dates to YYYY/MM/DD",
-                "Remove/delete all deprecated records",
-                "Mark all active records as Active (Verified)",
-                "Append record: 106|OAW-106|Cloud Vision Tool|vision@oaw.io|2026-08-10|Active"
-            ]
-        )
-
-        custom_prompt = st.text_input("Or enter your custom prompt instruction:", value="" if preset_prompt != "Custom Prompt Input..." else "Convert all email addresses to UPPERCASE")
-
-        final_prompt = custom_prompt if (preset_prompt == "Custom Prompt Input..." or not preset_prompt) else preset_prompt
-
-        if uploaded_file is not None:
-            raw_text = uploaded_file.getvalue().decode("utf-8")
-            st.text_area("Original File Preview", value=raw_text, height=120, disabled=True)
-
-            if st.button("🚀 Process File & Apply Prompt Modifications", type="primary"):
-                modified_text, status_msg = process_file_with_prompt(raw_text, final_prompt, filename=uploaded_file.name)
-
-                st.success(f"✅ Success! {status_msg}")
-
-                st.subheader("Modified & Saved File Content")
-                st.text_area("Output Preview", value=modified_text, height=150)
-
-                st.download_button(
-                    label="📥 Download Modified File",
-                    data=modified_text,
-                    file_name=f"modified_{uploaded_file.name}",
-                    mime="text/plain"
-                )
-
-    with ftab3:
-        st.markdown("### Data Entry with RegEx Input Validation")
-        with st.form("file_entry_form"):
-            f_id = st.text_input("Record ID (RegEx: 1-5 digits)", value="105")
-            f_code = st.text_input("Tool Code (RegEx: e.g. OAW-105)", value="OAW-105")
-            f_name = st.text_input("Tool Name", value="File System Tool")
-            f_email = st.text_input("Contact Email (RegEx: name@domain.com)", value="dev@oaw.io")
-            f_date = st.text_input("Date (RegEx: YYYY-MM-DD)", value="2026-08-10")
-            f_status = st.selectbox("Status", ["Active", "Beta", "Deprecated"])
-
-            f_submit = st.form_submit_button("Validate RegEx & Append Record (Mode 'a')")
-            if f_submit:
-                # RegEx Validation Checks
-                errors = []
-                if not validate_id(f_id):
-                    errors.append("❌ Invalid ID format (must be 1-5 digits).")
-                if not validate_tool_code(f_code):
-                    errors.append("❌ Invalid Tool Code format (must be e.g. OAW-105).")
-                if not validate_email(f_email):
-                    errors.append("❌ Invalid Email format (must be name@domain.com).")
-                if not validate_date(f_date):
-                    errors.append("❌ Invalid Date format (must be YYYY-MM-DD).")
-
-                if errors:
-                    for err in errors:
-                        st.error(err)
-                else:
-                    new_line = f"{f_id}|{f_code}|{f_name}|{f_email}|{f_date}|{f_status}"
-                    msg = append_record(new_line)
-                    st.success(f"✅ All RegEx Validations Passed! {msg}")
-                    st.rerun()
-
-    with ftab4:
-        st.markdown("### Create Data File Backup Copy")
-        if st.button("Generate Backup Copy ('records_backup.txt')"):
-            b_msg = create_backup()
-            st.success(f"✅ {b_msg}")
+                        line_str = f"{r_id}|{r_code}|{r_name}|{r_email}|{r_date}|{r_status}"
+                        res_msg = append_record(line_str)
+                        st.success(f"RegEx Passed! {res_msg}")
+                        st.rerun()
 
 
 if __name__ == "__main__":
     main()
-
-
