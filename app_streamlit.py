@@ -230,15 +230,28 @@ def main():
                         "usage_count": 10,
                         "rating": t_rating
                     }
+                    saved_via_api = False
                     try:
-                        res = requests.post(API_URL, json=payload, timeout=2)
+                        res = requests.post(API_URL, json=payload, timeout=1.5)
                         if res.status_code == 201:
+                            saved_via_api = True
                             st.success(f"Record '{t_name}' created successfully via Flask API!")
                             st.rerun()
-                        else:
-                            st.error(f"API Error: {res.text}")
                     except Exception:
-                        st.info("Flask API server is offline. Run 'python server.py' to persist additions.")
+                        pass
+
+                    if not saved_via_api and os.path.exists(DATA_FILE):
+                        with open(DATA_FILE, "r+", encoding="utf-8") as f:
+                            current_records = json.load(f)
+                            new_id = max([r.get("id", 0) for r in current_records], default=100) + 1
+                            payload["id"] = new_id
+                            current_records.append(payload)
+                            f.seek(0)
+                            json.dump(current_records, f, indent=2)
+                            f.truncate()
+                        st.success(f"Record '{t_name}' created and saved to data/dataset.json!")
+                        st.rerun()
+
 
     # Tab 3: Lab File Handling & RegEx Module
     with tab_files:
