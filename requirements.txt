@@ -1,0 +1,14 @@
+# Observable Agent Runtime — dependencies
+#
+# Core
+PyQt6              # GUI framework
+requests           # HTTP client for Ollama API calls
+
+# Tools (future integrations — install now, wire up later)
+tavily-python      # Real web search (replacing simulated WebSearchTool)
+e2b-code-interpreter  # Sandboxed code execution (replacing bare exec)
+
+# Data / config
+pydantic           # Structured tool I/O (ToolResult models — next phase)
+pydantic-settings  # .env loading for API keys (next phase)
+python-dotenv      # .env file support
