@@ -219,10 +219,16 @@ def main():
 
     from file_manager import (
         read_all_records, append_record, search_record, update_record,
-        delete_record, create_backup, validate_id, validate_email, validate_date, validate_tool_code
+        delete_record, create_backup, process_file_with_prompt,
+        validate_id, validate_email, validate_date, validate_tool_code
     )
 
-    ftab1, ftab2, ftab3 = st.tabs(["📄 File Records Viewer", "🔍 RegEx Input Validation & Append", "💾 Backup File"])
+    ftab1, ftab2, ftab3, ftab4 = st.tabs([
+        "📄 File Records Viewer",
+        "📤 Upload File & AI Prompt Processor",
+        "🔍 RegEx Input Validation & Append",
+        "💾 Backup File"
+    ])
 
     with ftab1:
         st.markdown("### Text File Storage (`data/records.txt`)")
@@ -234,6 +240,47 @@ def main():
             st.info("File is empty.")
 
     with ftab2:
+        st.markdown("### 📤 Upload File & Apply Natural Language Prompt Modifications")
+        st.markdown("Upload any text record file (`.txt`), enter a prompt instruction, and the app will modify, back up, and save the updated file on disk.")
+
+        uploaded_file = st.file_uploader("Upload Text Record File", type=["txt", "csv"])
+
+        preset_prompt = st.selectbox(
+            "Select Prompt Transformation Preset",
+            [
+                "Custom Prompt Input...",
+                "Convert all email addresses to UPPERCASE",
+                "Format dates to YYYY/MM/DD",
+                "Remove/delete all deprecated records",
+                "Mark all active records as Active (Verified)",
+                "Append record: 106|OAW-106|Cloud Vision Tool|vision@oaw.io|2026-08-10|Active"
+            ]
+        )
+
+        custom_prompt = st.text_input("Or enter your custom prompt instruction:", value="" if preset_prompt != "Custom Prompt Input..." else "Convert all email addresses to UPPERCASE")
+
+        final_prompt = custom_prompt if (preset_prompt == "Custom Prompt Input..." or not preset_prompt) else preset_prompt
+
+        if uploaded_file is not None:
+            raw_text = uploaded_file.getvalue().decode("utf-8")
+            st.text_area("Original File Preview", value=raw_text, height=120, disabled=True)
+
+            if st.button("🚀 Process File & Apply Prompt Modifications", type="primary"):
+                modified_text, status_msg = process_file_with_prompt(raw_text, final_prompt, filename=uploaded_file.name)
+
+                st.success(f"✅ Success! {status_msg}")
+
+                st.subheader("Modified & Saved File Content")
+                st.text_area("Output Preview", value=modified_text, height=150)
+
+                st.download_button(
+                    label="📥 Download Modified File",
+                    data=modified_text,
+                    file_name=f"modified_{uploaded_file.name}",
+                    mime="text/plain"
+                )
+
+    with ftab3:
         st.markdown("### Data Entry with RegEx Input Validation")
         with st.form("file_entry_form"):
             f_id = st.text_input("Record ID (RegEx: 1-5 digits)", value="105")
@@ -265,7 +312,7 @@ def main():
                     st.success(f"✅ All RegEx Validations Passed! {msg}")
                     st.rerun()
 
-    with ftab3:
+    with ftab4:
         st.markdown("### Create Data File Backup Copy")
         if st.button("Generate Backup Copy ('records_backup.txt')"):
             b_msg = create_backup()
@@ -274,4 +321,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

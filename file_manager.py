@@ -223,3 +223,92 @@ def create_backup(filepath: str = DEFAULT_FILE, backup_filepath: str = BACKUP_FI
         f_out.close()
 
     return f"Backup created successfully at '{os.path.basename(backup_filepath)}'."
+
+
+def process_file_with_prompt(file_content: str, prompt_instruction: str, filename: str = "uploaded_records.txt") -> tuple[str, str]:
+    """
+    Operation: Process uploaded file content according to natural language prompt instructions.
+    Demonstrates: File Opening Modes ('w+', 'a'), Methods (read, write, writelines, seek, tell, close),
+                  RegEx processing, and saving back to disk.
+    """
+    out_dir = os.path.join(os.path.dirname(__file__), "data")
+    os.makedirs(out_dir, exist_ok=True)
+    save_path = os.path.join(out_dir, filename)
+    backup_path = os.path.join(out_dir, f"backup_{filename}")
+
+    # Save original uploaded file first (Mode 'w')
+    f_orig = open(save_path, "w", encoding="utf-8")
+    try:
+        f_orig.write(file_content)
+    finally:
+        f_orig.close()
+
+    # Create backup of uploaded file (Mode 'r' & 'w')
+    f_in = open(save_path, "r", encoding="utf-8")
+    f_bkp = open(backup_path, "w", encoding="utf-8")
+    try:
+        lines = f_in.readlines()
+        f_bkp.writelines(lines)
+    finally:
+        f_in.close()
+        f_bkp.close()
+
+    # Apply prompt instruction / transformation
+    instruction = prompt_instruction.lower()
+    modified_lines = []
+
+    # Read saved content (Mode 'r')
+    f_read = open(save_path, "r", encoding="utf-8")
+    try:
+        lines = f_read.readlines()
+    finally:
+        f_read.close()
+
+    for line in lines:
+        new_line = line
+        # Prompt option 1: Convert emails to uppercase
+        if "uppercase email" in instruction or "uppercase" in instruction:
+            new_line = re.sub(r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", lambda m: m.group(1).upper(), new_line)
+
+        # Prompt option 2: Filter/remove deprecated records
+        if ("remove deprecated" in instruction or "delete deprecated" in instruction) and "deprecated" in new_line.lower():
+            continue
+
+        # Prompt option 3: Format dates to YYYY/MM/DD
+        if "format date" in instruction or "slash date" in instruction:
+            new_line = re.sub(r"(\d{4})-(\d{2})-(\d{2})", r"\1/\2/\3", new_line)
+
+        # Prompt option 4: Mark active records as Verified
+        if "mark active" in instruction or "verify active" in instruction:
+            new_line = re.sub(r"\bActive\b", "Active (Verified)", new_line)
+
+        modified_lines.append(new_line)
+
+    # Prompt option 5: Append new record if requested
+    if "append record" in instruction or "add record" in instruction:
+        append_match = re.search(r"(?:append|add)\s+record\s*[:\-]?\s*(.*)", prompt_instruction, re.IGNORECASE)
+        if append_match:
+            added_text = append_match.group(1).strip()
+            modified_lines.append(added_text + "\n")
+        else:
+            modified_lines.append("999|OAW-999|New Prompt Record|added@oaw.io|2026-08-10|Active\n")
+
+    # Save modified lines back to disk using Mode 'w+' and writelines() / seek() / tell()
+    f_mod = open(save_path, "w+", encoding="utf-8")
+    try:
+        f_mod.writelines(modified_lines)
+        f_mod.seek(0)
+        pos = f_mod.tell()  # Demonstrate tell() method
+        final_saved_content = f_mod.read()
+    finally:
+        f_mod.close()
+
+    status_msg = (
+        f"File '{filename}' processed successfully!\n"
+        f"• Original Lines: {len(lines)} | Modified Lines: {len(modified_lines)}\n"
+        f"• Backup copy saved to 'backup_{filename}'.\n"
+        f"• File pointer offset verified at byte {pos} using seek() and tell()."
+    )
+
+    return final_saved_content, status_msg
+
