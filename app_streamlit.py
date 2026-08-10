@@ -213,6 +213,65 @@ def main():
             else:
                 st.warning("API Server offline. Please start server.py to execute DELETE calls.")
 
+    # ── Section 4: File Handling & RegEx Validation Lab Module ────────────────
+    st.markdown("---")
+    st.subheader("📁 Lab Module: File Handling & RegEx Validation")
+
+    from file_manager import (
+        read_all_records, append_record, search_record, update_record,
+        delete_record, create_backup, validate_id, validate_email, validate_date, validate_tool_code
+    )
+
+    ftab1, ftab2, ftab3 = st.tabs(["📄 File Records Viewer", "🔍 RegEx Input Validation & Append", "💾 Backup File"])
+
+    with ftab1:
+        st.markdown("### Text File Storage (`data/records.txt`)")
+        file_lines = read_all_records()
+        if file_lines:
+            file_df = pd.DataFrame([l.strip().split("|") for l in file_lines], columns=["ID", "Tool Code", "Name", "Email", "Date", "Status"])
+            st.dataframe(file_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("File is empty.")
+
+    with ftab2:
+        st.markdown("### Data Entry with RegEx Input Validation")
+        with st.form("file_entry_form"):
+            f_id = st.text_input("Record ID (RegEx: 1-5 digits)", value="105")
+            f_code = st.text_input("Tool Code (RegEx: e.g. OAW-105)", value="OAW-105")
+            f_name = st.text_input("Tool Name", value="File System Tool")
+            f_email = st.text_input("Contact Email (RegEx: name@domain.com)", value="dev@oaw.io")
+            f_date = st.text_input("Date (RegEx: YYYY-MM-DD)", value="2026-08-10")
+            f_status = st.selectbox("Status", ["Active", "Beta", "Deprecated"])
+
+            f_submit = st.form_submit_button("Validate RegEx & Append Record (Mode 'a')")
+            if f_submit:
+                # RegEx Validation Checks
+                errors = []
+                if not validate_id(f_id):
+                    errors.append("❌ Invalid ID format (must be 1-5 digits).")
+                if not validate_tool_code(f_code):
+                    errors.append("❌ Invalid Tool Code format (must be e.g. OAW-105).")
+                if not validate_email(f_email):
+                    errors.append("❌ Invalid Email format (must be name@domain.com).")
+                if not validate_date(f_date):
+                    errors.append("❌ Invalid Date format (must be YYYY-MM-DD).")
+
+                if errors:
+                    for err in errors:
+                        st.error(err)
+                else:
+                    new_line = f"{f_id}|{f_code}|{f_name}|{f_email}|{f_date}|{f_status}"
+                    msg = append_record(new_line)
+                    st.success(f"✅ All RegEx Validations Passed! {msg}")
+                    st.rerun()
+
+    with ftab3:
+        st.markdown("### Create Data File Backup Copy")
+        if st.button("Generate Backup Copy ('records_backup.txt')"):
+            b_msg = create_backup()
+            st.success(f"✅ {b_msg}")
+
 
 if __name__ == "__main__":
     main()
+
