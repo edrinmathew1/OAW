@@ -80,10 +80,17 @@ class ObservableAgent:
 
     def _detect_tool(self, text: str) -> AgentTool | None:
         """Return the first tool whose trigger pattern matches the text."""
+        # Prioritize FileManagementTool if request contains file path or 'process file'
+        if "process file" in text.lower() or ".txt" in text.lower() or ".csv" in text.lower():
+            for tool in self.tools:
+                if tool.name == "File Manager Tool":
+                    return tool
+
         for tool in self.tools:
             if tool.matches(text):
                 return tool
         return None
+
 
     def _call_ollama(self, user_message: str, tool_observation: str | None = None) -> str:
         """

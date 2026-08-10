@@ -18,23 +18,62 @@ from file_manager import (
 
 class FileManagementTool(AgentTool):
     """
-    Handles file operations, uploads, natural language transformations, and backups.
+    Handles file operations, uploads, natural language transformations, Q&A on documents, and backups.
     Trigger words: file, read file, process file, modify file, backup file, update file, delete from file
     """
 
     def __init__(self) -> None:
         super().__init__(
             name="File Manager Tool",
-            description="Process text/record files, apply transformations, validate fields via RegEx, and create backups",
+            description="Process text/record files, read document contents, answer questions, apply transformations, and create backups",
             trigger_pattern=r"\b(file|read file|process file|modify file|backup file|update file|delete from file|open file)\b"
         )
 
-    def execute(self, task: str) -> dict:
-        # Extract file path if provided in task
-        path_match = re.search(r"['\"]?([a-zA-Z0-9_\-\\/:\.]+\.(?:txt|csv))['\"]?", task)
-        filepath = path_match.group(1) if path_match else DEFAULT_FILE
+    def _extract_filepath(self, task: str) -> str:
+        """Extract valid file path supporting paths with spaces and quotes."""
+        # 1. Match double quoted path
+        m1 = re.search(r"\"([^\"]+\.(?:txt|csv))\"", task, re.IGNORECASE)
+        if m1 and os.path.exists(m1.group(1).strip()):
+            return m1.group(1).strip()
 
+        # 2. Match single quoted path
+        m2 = re.search(r"'([^']+\.(?:txt|csv))'", task, re.IGNORECASE)
+        if m2 and os.path.exists(m2.group(1).strip()):
+            return m2.group(1).strip()
+
+        # 3. Match 'process file <path>:' format
+        m3 = re.search(r"process file\s+[\"']?([^:\"'\n\r]+\.(?:txt|csv))[\"']?", task, re.IGNORECASE)
+        if m3 and os.path.exists(m3.group(1).strip()):
+            return m3.group(1).strip()
+
+        # 4. Match any Windows path format (e.g. C:\...)
+        m4 = re.search(r"([A-Za-z]:\\[^:\"'\n\r]+?\.(?:txt|csv))", task, re.IGNORECASE)
+        if m4 and os.path.exists(m4.group(1).strip()):
+            return m4.group(1).strip()
+
+        # 5. Match plain relative filename
+        m5 = re.search(r"([^\s\"'\n\r]+\.(?:txt|csv))", task, re.IGNORECASE)
+        if m5:
+            cand = m5.group(1).strip().rstrip(":")
+            if os.path.exists(cand):
+                return cand
+            # Check inside data/ directory
+            data_cand = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", cand)
+            if os.path.exists(data_cand):
+                return data_cand
+
+        return DEFAULT_FILE
+
+    def execute(self, task: str) -> dict:
+        filepath = self._extract_filepath(task)
         task_lower = task.lower()
+
+        if not os.path.exists(filepath):
+            return {
+                "tool": self.name,
+                "status": "error",
+                "result": f"File '{filepath}' not found on disk."
+            }
 
         # 1. Backup Operation
         if "backup" in task_lower:
@@ -45,29 +84,13 @@ class FileManagementTool(AgentTool):
                 "result": f"Backup Operation Completed:\n{msg}"
             }
 
-        # 2. Read Operation
-        if "read" in task_lower or "show" in task_lower:
-            records = read_all_records(filepath)
-            formatted = "\n".join(r.strip() for r in records)
-            return {
-                "tool": self.name,
-                "status": "success",
-                "result": f"File Contents of '{os.path.basename(filepath)}' ({len(records)} lines):\n{formatted}"
-            }
+        # 2. Check if modification is requested (e.g. convert, uppercase, format, remove, append, delete, change)
+        is_modification = any(kw in task_lower for kw in [
+            "uppercase", "lowercase", "convert", "format", "remove deprecated",
+            "delete record", "append record", "modify line", "replace text", "change email"
+        ])
 
-        # 3. Append / Add Record
-        if "append" in task_lower or "add" in task_lower:
-            record_match = re.search(r"(?:append|add)\s+(?:record|line)?\s*[:\-]?\s*(.*)", task, re.IGNORECASE)
-            record_str = record_match.group(1).strip() if record_match else "105|OAW-105|Agent Tool|dev@oaw.io|2026-08-10|Active"
-            msg = append_record(record_str, filepath)
-            return {
-                "tool": self.name,
-                "status": "success",
-                "result": f"Append Operation Completed:\n{msg}\nAppended Line: {record_str}"
-            }
-
-        # 4. Prompt Processing / Modification (Default for process/modify/transform)
-        if os.path.exists(filepath):
+        if is_modification:
             f_in = open(filepath, "r", encoding="utf-8")
             try:
                 content = f_in.read()
@@ -78,11 +101,22 @@ class FileManagementTool(AgentTool):
             return {
                 "tool": self.name,
                 "status": "success",
-                "result": f"{status_msg}\n\nModified Content Preview:\n{modified_content[:500]}"
+                "result": f"{status_msg}\n\nModified Content Preview:\n{modified_content}"
             }
+
+        # 3. Default: Read file content & return for Document Q&A / Answer questions
+        f_in = open(filepath, "r", encoding="utf-8")
+        try:
+            content = f_in.read()
+        finally:
+            f_in.close()
+
+        lines = content.strip().splitlines()
+        filename = os.path.basename(filepath)
 
         return {
             "tool": self.name,
-            "status": "error",
-            "result": f"File '{filepath}' not found."
+            "status": "success",
+            "result": f"Document '{filename}' read successfully ({len(lines)} lines).\n\nDocument Content:\n{content}"
         }
+
