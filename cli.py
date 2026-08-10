@@ -9,16 +9,18 @@
 # ─────────────────────────────────────────────
 
 import sys
+import os
+import shutil
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QTextEdit, QLineEdit, QPushButton,
-    QLabel, QSplitter,
+    QLabel, QSplitter, QFileDialog,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QTextCursor
 
 from agent.core import ObservableAgent
-from tools import WebSearchTool, MemoryTool, CodeExecutionTool, APICallerTool
+from tools import WebSearchTool, MemoryTool, CodeExecutionTool, APICallerTool, FileManagementTool
 
 
 # ─────────────────────────────────────────────
@@ -68,6 +70,7 @@ class MainWindow(QMainWindow):
         MemoryTool()
         CodeExecutionTool()
         APICallerTool()
+        FileManagementTool()
 
     # ── UI construction ──────────────────────────────────────────────────
 
@@ -87,8 +90,8 @@ class MainWindow(QMainWindow):
         self._append_chat(
             "agent",
             "Hello! I'm your local AI agent running on Qwen 2.5. "
-            "I can search the web, remember notes, and execute code. "
-            "What do you need?"
+            "I can search the web, remember notes, run code, call APIs, and process/modify record files. "
+            "Click 'Attach File' or ask anything to begin!"
         )
 
     def _make_splitter(self) -> QSplitter:
@@ -146,20 +149,43 @@ class MainWindow(QMainWindow):
         i_layout.setContentsMargins(16, 12, 16, 12)
         i_layout.setSpacing(10)
 
+        self.attach_btn = QPushButton("📎 Attach File")
+        self.attach_btn.setObjectName("actionBtn")
+        self.attach_btn.clicked.connect(self._attach_file)
+
         self.input = QLineEdit()
         self.input.setObjectName("inputField")
-        self.input.setPlaceholderText("Ask anything — search, remember, run code, call API…")
+        self.input.setPlaceholderText("Ask anything — search, run code, call API, or process attached file...")
         self.input.returnPressed.connect(self._send)
 
         self.send_btn = QPushButton("Send")
         self.send_btn.setObjectName("sendBtn")
         self.send_btn.clicked.connect(self._send)
 
+        i_layout.addWidget(self.attach_btn)
         i_layout.addWidget(self.input)
         i_layout.addWidget(self.send_btn)
         layout.addWidget(input_bar)
 
         return left
+
+    def _attach_file(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Record or Text File", "", "Text/Data Files (*.txt *.csv);;All Files (*)"
+        )
+        if file_path:
+            # Copy to local data directory if needed
+            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            os.makedirs(data_dir, exist_ok=True)
+            filename = os.path.basename(file_path)
+            dest_path = os.path.join(data_dir, filename)
+            
+            if os.path.abspath(file_path) != os.path.abspath(dest_path):
+                shutil.copy(file_path, dest_path)
+
+            self.input.setText(f'process file "{dest_path}": convert all email addresses to uppercase')
+            self._append_chat("tool", f"Attached file: '{filename}' saved to data folder.\nDefault prompt loaded into input field. Modify instruction and click Send!")
+
 
     def _build_right_panel(self) -> QWidget:
         right = QWidget()
