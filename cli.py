@@ -59,6 +59,8 @@ class MainWindow(QMainWindow):
         # 2. Create agent (reads registry)
         self.agent = ObservableAgent()
         # 3. Build the UI
+        self.attached_file_path: str | None = None
+        self.is_generating: bool = False
         self._build_ui()
         self.worker: AgentWorker | None = None
 
@@ -76,7 +78,7 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         self.setWindowTitle("Observable Agent Runtime")
-        self.setMinimumSize(1100, 720)
+        self.setMinimumSize(1150, 750)
         self.setStyleSheet(self._stylesheet())
 
         central = QWidget()
@@ -87,18 +89,13 @@ class MainWindow(QMainWindow):
 
         root.addWidget(self._make_splitter())
 
-        self._append_chat(
-            "agent",
-            "Hello! I'm your local AI agent running on Qwen 2.5. "
-            "I can search the web, remember notes, run code, call APIs, and process/modify record files. "
-            "Click 'Attach File' or ask anything to begin!"
-        )
+        self._append_chat("agent", "Hello Edrin, how can I help you?")
 
     def _make_splitter(self) -> QSplitter:
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self._build_left_panel())
         splitter.addWidget(self._build_right_panel())
-        splitter.setSizes([680, 380])
+        splitter.setSizes([720, 430])
         splitter.setHandleWidth(1)
         return splitter
 
@@ -142,30 +139,60 @@ class MainWindow(QMainWindow):
         self.chat.setReadOnly(True)
         layout.addWidget(self.chat, 1)
 
-        # ── Input bar ────────────────────────────────────────────────────
+        # ── Input bar & File Pill ─────────────────────────────────────────
+        input_container = QWidget()
+        input_container.setObjectName("inputContainer")
+        ic_layout = QVBoxLayout(input_container)
+        ic_layout.setContentsMargins(16, 8, 16, 16)
+        ic_layout.setSpacing(6)
+
+        # Attachment Pill Badge Widget (hidden by default)
+        self.pill_widget = QWidget()
+        self.pill_widget.setObjectName("pillWidget")
+        self.pill_widget.setVisible(False)
+        pw_layout = QHBoxLayout(self.pill_widget)
+        pw_layout.setContentsMargins(10, 4, 10, 4)
+        pw_layout.setSpacing(6)
+
+        self.pill_label = QLabel("📎 attached_file.txt")
+        self.pill_label.setObjectName("pillLabel")
+
+        self.remove_file_btn = QPushButton("✕")
+        self.remove_file_btn.setObjectName("removeFileBtn")
+        self.remove_file_btn.setFixedSize(18, 18)
+        self.remove_file_btn.clicked.connect(self._remove_attached_file)
+
+        pw_layout.addWidget(self.pill_label)
+        pw_layout.addWidget(self.remove_file_btn)
+        pw_layout.addStretch()
+        ic_layout.addWidget(self.pill_widget)
+
+        # Main Input Row
         input_bar = QWidget()
         input_bar.setObjectName("inputBar")
         i_layout = QHBoxLayout(input_bar)
-        i_layout.setContentsMargins(16, 12, 16, 12)
+        i_layout.setContentsMargins(0, 0, 0, 0)
         i_layout.setSpacing(10)
 
-        self.attach_btn = QPushButton("📎 Attach File")
-        self.attach_btn.setObjectName("actionBtn")
+        self.attach_btn = QPushButton("📎 Attach")
+        self.attach_btn.setObjectName("attachBtn")
         self.attach_btn.clicked.connect(self._attach_file)
 
         self.input = QLineEdit()
         self.input.setObjectName("inputField")
-        self.input.setPlaceholderText("Ask anything — search, run code, call API, or process attached file...")
-        self.input.returnPressed.connect(self._send)
+        self.input.setPlaceholderText("Ask anything or give instructions for attached file...")
+        self.input.returnPressed.connect(self._on_send_click)
 
         self.send_btn = QPushButton("Send")
         self.send_btn.setObjectName("sendBtn")
-        self.send_btn.clicked.connect(self._send)
+        self.send_btn.clicked.connect(self._on_send_click)
 
         i_layout.addWidget(self.attach_btn)
         i_layout.addWidget(self.input)
         i_layout.addWidget(self.send_btn)
-        layout.addWidget(input_bar)
+        ic_layout.addWidget(input_bar)
+
+        layout.addWidget(input_container)
 
         return left
 
@@ -174,7 +201,6 @@ class MainWindow(QMainWindow):
             self, "Select Record or Text File", "", "Text/Data Files (*.txt *.csv);;All Files (*)"
         )
         if file_path:
-            # Copy to local data directory if needed
             data_dir = os.path.join(os.path.dirname(__file__), "data")
             os.makedirs(data_dir, exist_ok=True)
             filename = os.path.basename(file_path)
@@ -183,8 +209,25 @@ class MainWindow(QMainWindow):
             if os.path.abspath(file_path) != os.path.abspath(dest_path):
                 shutil.copy(file_path, dest_path)
 
-            self.input.setText(f'process file "{dest_path}": convert all email addresses to uppercase')
-            self._append_chat("tool", f"Attached file: '{filename}' saved to data folder.\nDefault prompt loaded into input field. Modify instruction and click Send!")
+            self.attached_file_path = dest_path
+            self.pill_label.setText(f"📎 {filename}")
+            self.pill_widget.setVisible(True)
+
+    def _remove_attached_file(self) -> None:
+        self.attached_file_path = None
+        self.pill_widget.setVisible(False)
+
+    def _on_send_click(self) -> None:
+        if self.is_generating:
+            # STOP Prompt clicked!
+            if self.worker and self.worker.isRunning():
+                self.worker.terminate()
+                self.worker.wait()
+            self._append_trace('<span style="color:#ef4444;font-weight:600">[CANCELLED] Generation stopped by user.</span>')
+            self._on_done()
+        else:
+            self._send()
+
 
 
     def _build_right_panel(self) -> QWidget:
@@ -242,29 +285,37 @@ class MainWindow(QMainWindow):
 
     def _clear_chat(self) -> None:
         self.chat.clear()
-        self._append_chat(
-            "agent",
-            "Chat cleared. I'm ready for your next request!"
-        )
+        self._append_chat("agent", "Hello Edrin, how can I help you?")
 
     def _clear_trace(self) -> None:
         self.trace.clear()
-
 
     # ── Event handlers ───────────────────────────────────────────────────
 
     def _send(self) -> None:
         text = self.input.text().strip()
-        if not text or self.worker is not None:
+        if not text and not self.attached_file_path:
+            return
+        if self.worker is not None and self.worker.isRunning():
             return
 
+        display_text = text
+        full_task_text = text
+
+        if self.attached_file_path:
+            filename = os.path.basename(self.attached_file_path)
+            display_text = f"<b>📎 {filename}</b><br>{text if text else 'Process attached file'}"
+            full_task_text = f'process file "{self.attached_file_path}": {text if text else "process file"}'
+
         self.input.clear()
-        self.send_btn.setEnabled(False)
-        self.send_btn.setText("…")
-        self._append_chat("user", text)
+        self.is_generating = True
+        self.send_btn.setText("⏹ Stop")
+        self.send_btn.setStyleSheet("background-color: #ef4444; color: white;")
+        
+        self._append_chat("user", display_text)
         self._append_trace("─" * 36)
 
-        self.worker = AgentWorker(self.agent, text)
+        self.worker = AgentWorker(self.agent, full_task_text)
         self.worker.log_signal.connect(self._on_log)
         self.worker.result_signal.connect(self._on_result)
         self.worker.finished.connect(self._on_done)
@@ -293,31 +344,39 @@ class MainWindow(QMainWindow):
 
     def _on_done(self) -> None:
         self.worker = None
-        self.send_btn.setEnabled(True)
+        self.is_generating = False
         self.send_btn.setText("Send")
+        self.send_btn.setStyleSheet("background-color: #7c3aed; color: white;")
+        self.attached_file_path = None
+        self.pill_widget.setVisible(False)
 
     # ── Rendering helpers ────────────────────────────────────────────────
 
     def _append_chat(self, role: str, text: str) -> None:
         role_styles = {
-            "user":  ("#1e293b", "#e2e8f0", "You"),
+            "user":  ("#1e293b", "#8b5cf6", "You"),
             "agent": ("#0f172a", "#a78bfa", "Agent"),
             "tool":  ("#0f1f1a", "#34d399", "Tool"),
         }
         bg, accent, label = role_styles.get(role, ("#1e293b", "#94a3b8", role))
-        escaped = (
+        
+        # Format markdown-like code blocks cleanly
+        formatted = (
             text
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
+            .replace("&lt;b&gt;", "<b>")
+            .replace("&lt;/b&gt;", "</b>")
+            .replace("&lt;br&gt;", "<br>")
             .replace("\n", "<br>")
         )
         html = (
             f'<div style="margin:8px 0;padding:12px 16px;'
-            f'background:{bg};border-left:3px solid {accent};border-radius:4px">'
+            f'background:{bg};border-left:3px solid {accent};border-radius:8px">'
             f'<div style="color:{accent};font-size:11px;font-weight:700;'
             f'margin-bottom:4px;letter-spacing:1px">{label.upper()}</div>'
-            f'<div style="color:#e2e8f0;font-size:14px;line-height:1.6">{escaped}</div>'
+            f'<div style="color:#e2e8f0;font-size:14px;line-height:1.6">{formatted}</div>'
             f'</div>'
         )
         self.chat.append(html)
@@ -337,36 +396,53 @@ class MainWindow(QMainWindow):
         QMainWindow, QWidget {
             background-color: #0f172a;
             color: #e2e8f0;
-            font-family: 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', -apple-system, sans-serif;
         }
         #leftPanel  { background-color: #0f172a; }
         #header     { background-color: #0f172a; border-bottom: 1px solid #1e293b; }
-        #headerTitle { font-size: 15px; font-weight: 700; color: #e2e8f0; }
+        #headerTitle { font-size: 16px; font-weight: 700; color: #f8fafc; }
         #modelBadge {
-            font-size: 11px; color: #64748b;
-            background: #1e293b; padding: 4px 10px; border-radius: 12px;
+            font-size: 11px; color: #94a3b8;
+            background: #1e293b; padding: 4px 12px; border-radius: 12px;
+            border: 1px solid #334155;
         }
         #chatArea {
             background-color: #0f172a; border: none;
-            padding: 16px; color: #e2e8f0; font-size: 14px;
+            padding: 20px; color: #e2e8f0; font-size: 14px;
         }
-        #inputBar   { background-color: #0f172a; border-top: 1px solid #1e293b; }
+        #inputContainer { background-color: #0f172a; border-top: 1px solid #1e293b; }
+        #pillWidget {
+            background-color: #1e293b; border: 1px solid #334155;
+            border-radius: 12px;
+        }
+        #pillLabel { font-size: 12px; font-weight: 600; color: #a78bfa; }
+        #removeFileBtn {
+            background-color: transparent; color: #94a3b8;
+            border: none; font-size: 12px; font-weight: bold;
+        }
+        #removeFileBtn:hover { color: #f87171; }
+        #attachBtn {
+            background-color: #1e293b; color: #e2e8f0;
+            border: 1px solid #334155; border-radius: 10px;
+            padding: 10px 14px; font-size: 13px; font-weight: 600;
+        }
+        #attachBtn:hover { background-color: #334155; color: #f8fafc; }
         #inputField {
             background-color: #1e293b; border: 1px solid #334155;
-            border-radius: 8px; padding: 10px 14px;
+            border-radius: 10px; padding: 10px 16px;
             color: #e2e8f0; font-size: 14px;
         }
-        #inputField:focus { border: 1px solid #a78bfa; }
+        #inputField:focus { border: 1px solid #8b5cf6; }
         #sendBtn {
             background-color: #7c3aed; color: white;
-            border: none; border-radius: 8px;
-            padding: 10px 20px; font-size: 14px; font-weight: 600;
+            border: none; border-radius: 10px;
+            padding: 10px 22px; font-size: 14px; font-weight: 600;
         }
-        #sendBtn:hover    { background-color: #6d28d9; }
+        #sendBtn:hover { background-color: #6d28d9; }
         #actionBtn {
             background-color: #1e293b; color: #94a3b8;
-            border: 1px solid #334155; border-radius: 6px;
-            padding: 4px 10px; font-size: 11px; font-weight: 600;
+            border: 1px solid #334155; border-radius: 8px;
+            padding: 5px 12px; font-size: 12px; font-weight: 600;
         }
         #actionBtn:hover { background-color: #334155; color: #f8fafc; }
         #rightPanel { background-color: #080f1e; border-left: 1px solid #1e293b; }
@@ -375,20 +451,19 @@ class MainWindow(QMainWindow):
             font-size: 12px; font-weight: 700; color: #64748b;
             letter-spacing: 1.5px; text-transform: uppercase;
         }
-
         #traceArea {
-            background-color: #080f1e; border: none; padding: 12px;
+            background-color: #080f1e; border: none; padding: 14px;
             font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 12px;
         }
         #toolsWidget { background-color: #0a1628; border-top: 1px solid #1e293b; }
-        #toolsLabel  {
+        #toolsLabel {
             font-size: 11px; font-weight: 700; color: #475569;
-            letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px;
+            letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;
         }
-        #toolItem    { font-size: 12px; color: #64748b; padding: 2px 0; }
-        QScrollBar:vertical          { background: #0f172a; width: 6px; }
-        QScrollBar::handle:vertical  { background: #334155; border-radius: 3px; }
-        QSplitter::handle            { background: #1e293b; }
+        #toolItem { font-size: 12px; color: #64748b; padding: 3px 0; }
+        QScrollBar:vertical { background: #0f172a; width: 6px; }
+        QScrollBar::handle:vertical { background: #334155; border-radius: 3px; }
+        QSplitter::handle { background: #1e293b; }
         """
 
 
@@ -402,3 +477,4 @@ if __name__ == "__main__":
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
+
