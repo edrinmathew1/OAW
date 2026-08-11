@@ -10,14 +10,21 @@
 import os
 import json
 import re
-from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
-    QLineEdit, QPushButton, QLabel, QMessageBox, QTabWidget, QWidget
-)
-from PyQt6.QtCore import Qt
+
+# Optional PyQt6 import for headless environments like Streamlit Cloud
+try:
+    from PyQt6.QtWidgets import (
+        QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
+        QLineEdit, QPushButton, QLabel, QMessageBox, QTabWidget, QWidget
+    )
+    from PyQt6.QtCore import Qt
+    PYQT_AVAILABLE = True
+except ImportError:
+    PYQT_AVAILABLE = False
 
 
 USER_FILE = os.path.join(os.path.dirname(__file__), "data", "users.json")
+
 
 
 class ValidationError(Exception):
