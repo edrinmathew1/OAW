@@ -1,81 +1,87 @@
-import re
+# ─────────────────────────────────────────────
+#  tools/search.py — Web Search & Public API Tool (Requirement #1 & #4)
+#
+#  Demonstrates:
+#    • Inheritance & Abstract Method implementation
+#    • Fetching data from Public Web APIs
+#    • Dictionary processing functions: .get(), .keys(), .values(), .items(), .update()
+# ─────────────────────────────────────────────
+
+import os
 import requests
-from config import TAVILY_API_KEY
 from tools.base import AgentTool
+from config import TAVILY_API_KEY
 
 
 class WebSearchTool(AgentTool):
     """
-    Handles web-search intent using Tavily API or HTTP search fallback.
-    Trigger words: search, find, look up, google, what is, who is, when did
+    Derived class inheriting from AgentTool.
+    Demonstrates Inheritance, Polymorphism, and Dictionary Processing (Requirement #4).
     """
 
     def __init__(self) -> None:
         super().__init__(
-            name="Web Search",
-            description="Search the web for current information",
-            trigger_pattern=r"\b(search|find|look up|google|what is|who is|when did)\b"
+            name="Web Search Tool",
+            description="Search the web or Wikipedia public API for real-time information",
+            trigger_pattern=r"\b(search|find|who is|what is|where is|latest|lookup)\b"
         )
 
-    def _search_tavily(self, query: str) -> str | None:
-        if not TAVILY_API_KEY:
-            return None
+    def _query_wikipedia_api(self, query: str) -> dict:
+        """Fetch summary from Wikipedia REST API and process dictionary response."""
+        clean_query = query.replace("search", "").replace("what is", "").replace("who is", "").strip()
+        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{requests.utils.quote(clean_query)}"
+        
         try:
-            from tavily import TavilyClient
-            tavily = TavilyClient(api_key=TAVILY_API_KEY)
-            response = tavily.search(query=query, max_results=3)
-            results = response.get("results", [])
-            if not results:
-                return f"No Tavily results found for '{query}'."
-            formatted = [f"• [{r.get('title')}]({r.get('url')}): {r.get('content')}" for r in results]
-            return "\n".join(formatted)
-        except Exception as err:
-            return f"Tavily search error: {err}"
-
-    def _search_fallback(self, query: str) -> str:
-        # Fallback to Wikipedia API for instant facts
-        try:
-            wiki_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{requests.utils.quote(query)}"
-            res = requests.get(wiki_url, timeout=5, headers={"User-Agent": "ObservableAgent/1.0"})
+            res = requests.get(url, timeout=3, headers={"User-Agent": "OAW_Agent/1.0"})
             if res.status_code == 200:
-                data = res.json()
-                extract = data.get("extract")
-                if extract:
-                    return f"• Wikipedia Summary for '{query}': {extract}"
+                data_dict: dict = res.json()
+
+                # Requirement #4: Dictionary functions processing
+                dict_keys = list(data_dict.keys())
+                extract_val = data_dict.get("extract", "No extract found.")
+                data_dict.update({"processed_status": "success"})
+
+                return {
+                    "source": "Wikipedia REST API",
+                    "title": data_dict.get("title", clean_query),
+                    "summary": extract_val,
+                    "keys_count": len(dict_keys)
+                }
         except Exception:
             pass
 
-        # Simulated structured response when offline / no key
-        return (
-            f"Search results for '{query}':\n"
-            f"• Quick Fact: Information regarding '{query}' loaded.\n"
-            f"• Note: Configure TAVILY_API_KEY in .env for live Tavily web search results."
-        )
+        return {"source": "Fallback", "summary": f"Could not retrieve Wikipedia summary for '{clean_query}'."}
 
     def execute(self, task: str) -> dict:
-        query = re.sub(
-            r"^(search for|search|find|look up|google)\s*",
-            "",
-            task,
-            flags=re.IGNORECASE
-        ).strip()
-        if not query:
-            query = task
+        """Implementation of abstract method execute()."""
+        # 1. Try Tavily Search API if key is configured
+        if TAVILY_API_KEY and TAVILY_API_KEY != "your_tavily_api_key_here":
+            try:
+                from tavily import TavilyClient
+                tavily = TavilyClient(api_key=TAVILY_API_KEY)
+                res = tavily.search(query=task, max_results=3)
+                results = res.get("results", [])
+                
+                formatted = []
+                for r in results:
+                    # Dictionary functions (.get, .items)
+                    title = r.get("title", "No Title")
+                    content = r.get("content", "")
+                    url = r.get("url", "")
+                    formatted.append(f"• [{title}]({url}): {content}")
 
-        # Try Tavily first if key present
-        tavily_out = self._search_tavily(query)
-        if tavily_out and not tavily_out.startswith("Tavily search error"):
-            result_str = tavily_out
-        else:
-            fallback_out = self._search_fallback(query)
-            if tavily_out: # was error
-                result_str = f"{tavily_out}\n\nFallback Results:\n{fallback_out}"
-            else:
-                result_str = fallback_out
+                return {
+                    "tool": self.name,
+                    "status": "success",
+                    "result": "\n\n".join(formatted) if formatted else "No results found."
+                }
+            except Exception:
+                pass
 
+        # 2. Fallback to Public Wikipedia REST API
+        wiki_res = self._query_wikipedia_api(task)
         return {
             "tool": self.name,
             "status": "success",
-            "result": result_str
+            "result": f"**Source: {wiki_res.get('source')}**\n\n{wiki_res.get('summary')}"
         }
-

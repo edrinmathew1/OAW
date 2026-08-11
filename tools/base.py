@@ -1,67 +1,47 @@
 # ─────────────────────────────────────────────
-#  tools/base.py — Abstract base class for all tools
+#  tools/base.py — Abstract Base Class & Polymorphism (Requirement #1)
 #
-#  OOP concepts demonstrated:
-#    • Abstract Base Class (ABC) — enforces the execute() contract
-#    • Class-level registry dict — shared across all subclasses
-#    • Polymorphism — every tool is a BaseTool, called the same way
+#  Demonstrates OOP Concepts:
+#    1. Abstract Base Class (ABC) & Abstract Method (@abstractmethod)
+#    2. Inheritance (Derived tool classes inherit from AgentTool)
+#    3. Polymorphism (Invoking execute() on different tool objects)
+#    4. Encapsulation (Internal regex pattern and tool execution logic)
 # ─────────────────────────────────────────────
 
-import re
 from abc import ABC, abstractmethod
+import re
 
 
 class AgentTool(ABC):
     """
-    Abstract base class every tool must inherit from.
-
-    Subclasses MUST implement:
-        execute(task: str) -> dict
-
-    Registering a tool is automatic — instantiating a subclass
-    adds it to AgentTool.registry under its name.
+    Abstract base class for all tools in the Observable Agent Runtime.
+    Demonstrates Abstract Base Class & Method (Requirement #1).
     """
 
-    # Shared registry across all subclasses (class variable, not instance)
-    registry: dict[str, "AgentTool"] = {}
+    registry: list["AgentTool"] = []
 
     def __init__(self, name: str, description: str, trigger_pattern: str) -> None:
-        self.name = name
-        self.description = description
-        # Pre-compile the regex for performance
-        self.trigger_pattern = re.compile(trigger_pattern, re.IGNORECASE)
-        # Auto-register in the class-level registry
-        AgentTool.registry[name] = self
+        self._name = name                # Encapsulated private attributes
+        self._description = description
+        self._trigger_pattern = trigger_pattern
+        AgentTool.registry.append(self)
 
-    # ── Abstract interface (subclasses must implement) ──────────────────
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def description(self) -> str:
+        return self._description
+
+    def matches(self, user_input: str) -> bool:
+        """Check if user input matches this tool's trigger pattern."""
+        return bool(re.search(self._trigger_pattern, user_input, re.IGNORECASE))
 
     @abstractmethod
     def execute(self, task: str) -> dict:
-        """Run the tool with the given task string. Return a result dict."""
+        """
+        Abstract Method (Requirement #1).
+        Must be implemented differently by each derived tool class.
+        """
         pass
-
-    # ── Concrete helpers (inherited as-is by all subclasses) ────────────
-
-    def matches(self, text: str) -> bool:
-        """Return True if this tool's trigger pattern fires on the text."""
-        return bool(self.trigger_pattern.search(text))
-
-    def to_ollama_schema(self) -> dict:
-        """Return the Ollama-compatible JSON schema for this tool."""
-        return {
-            "type": "function",
-            "function": {
-                "name": self.name.lower().replace(" ", "_"),
-                "description": self.description,
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "task": {
-                            "type": "string",
-                            "description": "The task to execute"
-                        }
-                    },
-                    "required": ["task"]
-                }
-            }
-        }

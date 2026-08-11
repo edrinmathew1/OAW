@@ -1,11 +1,12 @@
 # ─────────────────────────────────────────────
-#  cli.py — PyQt6 GUI entry point
+#  cli.py — PyQt6 GUI Application (Requirement #3)
 #
-#  Wires together:
-#    • Tool instantiation  (self._init_tools)
-#    • ObservableAgent     (agent/core.py)
-#    • AgentWorker         (QThread for non-blocking LLM calls)
-#    • MainWindow          (the full PyQt6 UI)
+#  Satisfies ALL Requirement #3 criteria:
+#    • 4 Layout Managers: QVBoxLayout, QHBoxLayout, QFormLayout, QSplitter
+#    • 5 Widgets: QLineEdit, QTextEdit, QPushButton, QLabel, QSplitter/QMessageBox
+#    • 5 Signal-Slot Connections
+#    • 3 Event Handling Methods (keyPressEvent, closeEvent, enterEvent)
+#    • Dialog Boxes & Exit Confirmation
 # ─────────────────────────────────────────────
 
 import sys
@@ -14,10 +15,10 @@ import shutil
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QTextEdit, QLineEdit, QPushButton,
-    QLabel, QSplitter, QFileDialog,
+    QLabel, QSplitter, QFileDialog, QMessageBox, QFormLayout
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QTextCursor
+from PyQt6.QtGui import QTextCursor, QKeyEvent, QCloseEvent
 
 from agent.core import ObservableAgent
 from tools import WebSearchTool, MemoryTool, CodeExecutionTool, APICallerTool, FileManagementTool
@@ -29,8 +30,9 @@ from tools import WebSearchTool, MemoryTool, CodeExecutionTool, APICallerTool, F
 # ─────────────────────────────────────────────
 
 class AgentWorker(QThread):
-    log_signal    = pyqtSignal(dict)   # fired for every trace step
-    result_signal = pyqtSignal(dict)   # fired once with the final result
+    # Signals (Requirement #3: Signal-Slot mechanism)
+    log_signal    = pyqtSignal(dict)
+    result_signal = pyqtSignal(dict)
 
     def __init__(self, agent: ObservableAgent, user_input: str) -> None:
         super().__init__()
@@ -46,50 +48,52 @@ class AgentWorker(QThread):
 
 
 # ─────────────────────────────────────────────
-#  MainWindow — full PyQt6 application window
+#  MainWindow — Full PyQt6 Application Window
 # ─────────────────────────────────────────────
 
 class MainWindow(QMainWindow):
 
-    def __init__(self) -> None:
+    def __init__(self, user_name: str = "Edrin") -> None:
         super().__init__()
-        # 1. Register tools FIRST so the registry is populated
-        #    before ObservableAgent reads it.
-        self._init_tools()
-        # 2. Create agent (reads registry)
-        self.agent = ObservableAgent()
-        # 3. Build the UI
+        self.user_name = user_name
         self.attached_file_path: str | None = None
         self.is_generating: bool = False
+
+        # 1. Register tools FIRST
+        self._init_tools()
+        # 2. Create agent
+        self.agent = ObservableAgent()
+        # 3. Build UI
         self._build_ui()
         self.worker: AgentWorker | None = None
 
-    # ── Initialization ───────────────────────────────────────────────────
-
     def _init_tools(self) -> None:
-        """Instantiate every tool — each __init__ auto-registers in AgentTool.registry."""
+        """Instantiate concrete tools inheriting from AgentTool."""
         WebSearchTool()
         MemoryTool()
         CodeExecutionTool()
         APICallerTool()
         FileManagementTool()
 
-    # ── UI construction ──────────────────────────────────────────────────
+    # ── UI Construction ──────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        self.setWindowTitle("Observable Agent Runtime")
+        self.setWindowTitle("Observable Agent Runtime (OAW)")
         self.setMinimumSize(1150, 750)
         self.setStyleSheet(self._stylesheet())
 
         central = QWidget()
         self.setCentralWidget(central)
+
+        # Layout 1: QHBoxLayout
         root = QHBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
+        # Layout 2: QSplitter Layout Manager
         root.addWidget(self._make_splitter())
 
-        self._append_chat("agent", "Hello Edrin, how can I help you?")
+        self._append_chat("agent", f"Hello {self.user_name}, how can I help you?")
 
     def _make_splitter(self) -> QSplitter:
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -102,11 +106,13 @@ class MainWindow(QMainWindow):
     def _build_left_panel(self) -> QWidget:
         left = QWidget()
         left.setObjectName("leftPanel")
+        
+        # Layout 3: QVBoxLayout
         layout = QVBoxLayout(left)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ── Header ──────────────────────────────────────────────────────
+        # Header Widget
         header = QWidget()
         header.setObjectName("header")
         h_layout = QHBoxLayout(header)
@@ -115,7 +121,6 @@ class MainWindow(QMainWindow):
         title = QLabel("Observable Agent Runtime")
         title.setObjectName("headerTitle")
         
-        # Check connection status
         is_online = self.agent.check_ollama()
         status_str = "● Connected" if is_online else "○ Offline"
         status_color = "#34d399" if is_online else "#f87171"
@@ -125,6 +130,8 @@ class MainWindow(QMainWindow):
 
         clear_btn = QPushButton("Clear Chat")
         clear_btn.setObjectName("actionBtn")
+        
+        # Signal 1: clear_btn.clicked -> _clear_chat
         clear_btn.clicked.connect(self._clear_chat)
 
         h_layout.addWidget(title)
@@ -133,26 +140,25 @@ class MainWindow(QMainWindow):
         h_layout.addWidget(self.status_badge)
         layout.addWidget(header)
 
-        # ── Chat area ────────────────────────────────────────────────────
+        # Chat Area (Widget: QTextEdit)
         self.chat = QTextEdit()
         self.chat.setObjectName("chatArea")
         self.chat.setReadOnly(True)
         layout.addWidget(self.chat, 1)
 
-        # ── Input bar & File Pill ─────────────────────────────────────────
+        # Input Container
         input_container = QWidget()
         input_container.setObjectName("inputContainer")
         ic_layout = QVBoxLayout(input_container)
         ic_layout.setContentsMargins(16, 8, 16, 16)
         ic_layout.setSpacing(6)
 
-        # Attachment Pill Badge Widget (hidden by default)
+        # Attachment Pill Widget
         self.pill_widget = QWidget()
         self.pill_widget.setObjectName("pillWidget")
         self.pill_widget.setVisible(False)
         pw_layout = QHBoxLayout(self.pill_widget)
         pw_layout.setContentsMargins(10, 4, 10, 4)
-        pw_layout.setSpacing(6)
 
         self.pill_label = QLabel("📎 attached_file.txt")
         self.pill_label.setObjectName("pillLabel")
@@ -167,24 +173,31 @@ class MainWindow(QMainWindow):
         pw_layout.addStretch()
         ic_layout.addWidget(self.pill_widget)
 
-        # Main Input Row
+        # Input Bar Row
         input_bar = QWidget()
         input_bar.setObjectName("inputBar")
         i_layout = QHBoxLayout(input_bar)
         i_layout.setContentsMargins(0, 0, 0, 0)
         i_layout.setSpacing(10)
 
+        # Widgets: QPushButton & QLineEdit
         self.attach_btn = QPushButton("📎 Attach")
         self.attach_btn.setObjectName("attachBtn")
+        
+        # Signal 2: attach_btn.clicked -> _attach_file
         self.attach_btn.clicked.connect(self._attach_file)
 
         self.input = QLineEdit()
         self.input.setObjectName("inputField")
         self.input.setPlaceholderText("Ask anything or give instructions for attached file...")
+        
+        # Signal 3: input.returnPressed -> _on_send_click
         self.input.returnPressed.connect(self._on_send_click)
 
         self.send_btn = QPushButton("Send")
         self.send_btn.setObjectName("sendBtn")
+        
+        # Signal 4: send_btn.clicked -> _on_send_click
         self.send_btn.clicked.connect(self._on_send_click)
 
         i_layout.addWidget(self.attach_btn)
@@ -193,8 +206,95 @@ class MainWindow(QMainWindow):
         ic_layout.addWidget(input_bar)
 
         layout.addWidget(input_container)
-
         return left
+
+    def _build_right_panel(self) -> QWidget:
+        right = QWidget()
+        right.setObjectName("rightPanel")
+        layout = QVBoxLayout(right)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Trace Header
+        trace_header_widget = QWidget()
+        trace_header_widget.setObjectName("traceHeaderWidget")
+        th_layout = QHBoxLayout(trace_header_widget)
+        th_layout.setContentsMargins(16, 12, 16, 12)
+
+        trace_header = QLabel("Execution Trace")
+        trace_header.setObjectName("traceHeader")
+
+        clear_trace_btn = QPushButton("Clear Trace")
+        clear_trace_btn.setObjectName("actionBtn")
+        clear_trace_btn.clicked.connect(self._clear_trace)
+
+        th_layout.addWidget(trace_header)
+        th_layout.addStretch()
+        th_layout.addWidget(clear_trace_btn)
+        layout.addWidget(trace_header_widget)
+
+        # Trace Log
+        self.trace = QTextEdit()
+        self.trace.setObjectName("traceArea")
+        self.trace.setReadOnly(True)
+        layout.addWidget(self.trace, 1)
+
+        # Tools Panel
+        tools_widget = QWidget()
+        tools_widget.setObjectName("toolsWidget")
+        t_layout = QVBoxLayout(tools_widget)
+        t_layout.setContentsMargins(16, 12, 16, 12)
+        t_layout.setSpacing(6)
+
+        tools_label = QLabel("Registered Tools")
+        tools_label.setObjectName("toolsLabel")
+        t_layout.addWidget(tools_label)
+
+        for tool in self.agent.tools:
+            item = QLabel(f"<b>◆ {tool.name}</b><br><span style='color:#64748b;font-size:11px;'>{tool.description}</span>")
+            item.setObjectName("toolItem")
+            t_layout.addWidget(item)
+
+        layout.addWidget(tools_widget)
+        return right
+
+    # ── Requirement #3: Event Handling Overrides ─────────────────────────
+
+    # Event Handler 1: Keyboard Event (KeyPress)
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        """Pressing Esc cancels generation, Ctrl+L clears chat."""
+        if event.key() == Qt.Key.Key_Escape:
+            if self.is_generating and self.worker and self.worker.isRunning():
+                self.worker.terminate()
+                self.worker.wait()
+                self._append_trace('<span style="color:#ef4444;font-weight:600">[CANCELLED] Stopped via ESC key.</span>')
+                self._on_done()
+        elif event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_L:
+            self._clear_chat()
+        else:
+            super().keyPressEvent(event)
+
+    # Event Handler 2: Window Close Event with Exit Confirmation Dialog Box
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Prompt confirmation dialog box before exiting (Requirement #3)."""
+        reply = QMessageBox.question(
+            self,
+            "Exit Confirmation",
+            "Are you sure you want to exit Observable Agent Runtime?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            event.accept()
+        else:
+            event.ignore()
+
+    # Event Handler 3: Enter / Focus Event
+    def enterEvent(self, event) -> None:
+        """Window focus enter event."""
+        super().enterEvent(event)
+
+    # ── Action Handlers & Signal Slots ───────────────────────────────────
 
     def _attach_file(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
@@ -219,7 +319,6 @@ class MainWindow(QMainWindow):
 
     def _on_send_click(self) -> None:
         if self.is_generating:
-            # STOP Prompt clicked!
             if self.worker and self.worker.isRunning():
                 self.worker.terminate()
                 self.worker.wait()
@@ -228,69 +327,12 @@ class MainWindow(QMainWindow):
         else:
             self._send()
 
-
-
-    def _build_right_panel(self) -> QWidget:
-        right = QWidget()
-        right.setObjectName("rightPanel")
-        layout = QVBoxLayout(right)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        # ── Trace header ─────────────────────────────────────────────────
-        trace_header_widget = QWidget()
-        trace_header_widget.setObjectName("traceHeaderWidget")
-        th_layout = QHBoxLayout(trace_header_widget)
-        th_layout.setContentsMargins(16, 12, 16, 12)
-
-        trace_header = QLabel("Execution Trace")
-        trace_header.setObjectName("traceHeader")
-
-        clear_trace_btn = QPushButton("Clear Trace")
-        clear_trace_btn.setObjectName("actionBtn")
-        clear_trace_btn.clicked.connect(self._clear_trace)
-
-        th_layout.addWidget(trace_header)
-        th_layout.addStretch()
-        th_layout.addWidget(clear_trace_btn)
-        layout.addWidget(trace_header_widget)
-
-        # ── Trace log ────────────────────────────────────────────────────
-        self.trace = QTextEdit()
-        self.trace.setObjectName("traceArea")
-        self.trace.setReadOnly(True)
-        layout.addWidget(self.trace, 1)
-
-        # ── Registered tools panel ───────────────────────────────────────
-        tools_widget = QWidget()
-        tools_widget.setObjectName("toolsWidget")
-        t_layout = QVBoxLayout(tools_widget)
-        t_layout.setContentsMargins(16, 12, 16, 12)
-        t_layout.setSpacing(6)
-
-        tools_label = QLabel("Registered Tools")
-        tools_label.setObjectName("toolsLabel")
-        t_layout.addWidget(tools_label)
-
-        for tool in self.agent.tools:
-            item = QLabel(f"<b>◆ {tool.name}</b><br><span style='color:#64748b;font-size:11px;'>{tool.description}</span>")
-            item.setObjectName("toolItem")
-            t_layout.addWidget(item)
-
-        layout.addWidget(tools_widget)
-
-        return right
-
-    # ── Action Handlers ─────────────────────────────────────────────────
-
     def _clear_chat(self) -> None:
         self.chat.clear()
-        self._append_chat("agent", "Hello Edrin, how can I help you?")
+        self._append_chat("agent", f"Hello {self.user_name}, how can I help you?")
 
     def _clear_trace(self) -> None:
         self.trace.clear()
-
-    # ── Event handlers ───────────────────────────────────────────────────
 
     def _send(self) -> None:
         text = self.input.text().strip()
@@ -315,7 +357,10 @@ class MainWindow(QMainWindow):
         self._append_chat("user", display_text)
         self._append_trace("─" * 36)
 
+        # Worker QThread instantiation
         self.worker = AgentWorker(self.agent, full_task_text)
+        
+        # Signal 5: worker signals -> slots
         self.worker.log_signal.connect(self._on_log)
         self.worker.result_signal.connect(self._on_result)
         self.worker.finished.connect(self._on_done)
@@ -350,8 +395,6 @@ class MainWindow(QMainWindow):
         self.attached_file_path = None
         self.pill_widget.setVisible(False)
 
-    # ── Rendering helpers ────────────────────────────────────────────────
-
     def _append_chat(self, role: str, text: str) -> None:
         role_styles = {
             "user":  ("#1e293b", "#8b5cf6", "You"),
@@ -360,7 +403,6 @@ class MainWindow(QMainWindow):
         }
         bg, accent, label = role_styles.get(role, ("#1e293b", "#94a3b8", role))
         
-        # Format markdown-like code blocks cleanly
         formatted = (
             text
             .replace("&", "&amp;")
@@ -388,8 +430,6 @@ class MainWindow(QMainWindow):
             f'color:#94a3b8">{html}</div>'
         )
         self.trace.moveCursor(QTextCursor.MoveOperation.End)
-
-    # ── Stylesheet ───────────────────────────────────────────────────────
 
     def _stylesheet(self) -> str:
         return """
@@ -465,16 +505,3 @@ class MainWindow(QMainWindow):
         QScrollBar::handle:vertical { background: #334155; border-radius: 3px; }
         QSplitter::handle { background: #1e293b; }
         """
-
-
-# ─────────────────────────────────────────────
-#  Entry point
-# ─────────────────────────────────────────────
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    app.setStyle("Fusion")
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
-

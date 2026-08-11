@@ -31,10 +31,11 @@ def test_get_all_records() -> None:
         print(f"HTTP Status Code: {response.status_code}")
         if response.status_code == 200:
             data = response.json()
-            print(f"Total records retrieved: {data.get('count')}")
+            print(f"Total records retrieved: {data.get('total')}")
             for r in data.get("records", [])[:3]:
                 print(f"  * [ID {r['id']}] {r['name']} ({r['category']}) - Status: {r['status']}")
             print("  ... (showing first 3 items)")
+
         else:
             print_json(response.json())
     except requests.exceptions.ConnectionError:

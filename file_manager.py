@@ -1,12 +1,3 @@
-# ─────────────────────────────────────────────
-#  file_manager.py — File Handling & RegEx Validation Module
-#
-#  Demonstrates:
-#    • User-defined functions for Create, Read, Append, Search, Update, Delete, Backup
-#    • File Opening Modes: 'w', 'r', 'a', 'r+', 'w+'
-#    • File Methods: read(), readline(), readlines(), write(), writelines(), seek(), tell(), close()
-#    • RegEx Input Validations (ID, Email, Date, Tool Code)
-# ─────────────────────────────────────────────
 
 import os
 import re
@@ -15,9 +6,6 @@ from datetime import datetime
 
 DEFAULT_FILE = os.path.join(os.path.dirname(__file__), "data", "records.txt")
 BACKUP_FILE = os.path.join(os.path.dirname(__file__), "data", "records_backup.txt")
-
-
-# ── 1. Input Validation using Regular Expressions ───────────────────────────
 
 def validate_id(record_id: str) -> bool:
     """Validate ID format (1 to 5 digits only)."""
@@ -42,7 +30,7 @@ def validate_tool_code(code: str) -> bool:
     return bool(re.match(pattern, str(code).strip()))
 
 
-# ── 2. File Handling Functions & File Modes / Methods ────────────────────────
+#File Handling Functions
 
 def create_file(filepath: str = DEFAULT_FILE, sample_records: list[str] | None = None) -> str:
     """
@@ -58,13 +46,12 @@ def create_file(filepath: str = DEFAULT_FILE, sample_records: list[str] | None =
             "103|OAW-103|API Caller Tool|support@oaw.io|2026-08-03|Active\n",
         ]
 
-    # File Mode 'w' (Write Mode - creates new or truncates existing file)
     f = open(filepath, "w", encoding="utf-8")
     try:
-        # File Method writelines()
+        #writelines()
         f.writelines(sample_records)
     finally:
-        # File Method close()
+        #close()
         f.close()
 
     return f"File '{os.path.basename(filepath)}' created successfully with mode 'w' and writelines()."
