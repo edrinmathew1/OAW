@@ -80,8 +80,9 @@ class FileManagementTool(AgentTool):
 
         # 2. File Transformations / Modifications
         is_modification = any(kw in task_lower for kw in [
-            "uppercase", "lowercase", "convert", "format", "remove deprecated",
-            "delete record", "append record", "modify line", "replace text", "change email"
+            "update", "modify", "change", "edit", "add", "append", "convert",
+            "uppercase", "lowercase", "format", "delete", "remove", "replace",
+            "write", "new record", "set status", "fix"
         ])
 
         if is_modification:
@@ -91,11 +92,11 @@ class FileManagementTool(AgentTool):
             finally:
                 f_in.close()
 
-            modified_content, status_msg = process_file_with_prompt(content, task, filename=os.path.basename(filepath))
+            modified_content, status_msg = process_file_with_prompt(content, task, target_filepath=filepath)
             return {
                 "tool": self.name,
                 "status": "success",
-                "result": f"{status_msg}\n\nModified Content Preview:\n{modified_content}"
+                "result": f"{status_msg}\n\nUpdated File Content Preview:\n{modified_content}"
             }
 
         # 3. Default: Read file content for Document Q&A

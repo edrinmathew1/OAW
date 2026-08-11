@@ -1,0 +1,3 @@
+101|OAW-101|Web Search Tool|admin@oaw.io|2026-08-01|Active
+102|OAW-102|Code Interpreter (Enhanced)|dev@oaw.io|2026-08-10|Active
+104|OAW-104|Memory Manager|memory@oaw.io|2026-08-10|Active
