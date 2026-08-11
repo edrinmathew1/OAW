@@ -110,11 +110,19 @@ class ObservableAgent:
         payload = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": self.system_prompt},
+                {"role": "system", "content": self.system_prompt + " Keep answers clear, direct, and concise."},
                 *self.history,
             ],
+            "options": {
+                "num_predict": 256,   # Limit response length for 3-5x faster generation
+                "temperature": 0.2,   # Fast greedy sampling
+                "top_k": 20,
+                "top_p": 0.8,
+            },
+            "keep_alive": "30m",      # Keep model loaded in memory so it never unloads
             "stream": False,
         }
+
 
         try:
             response = requests.post(OLLAMA_URL, json=payload, timeout=60)
