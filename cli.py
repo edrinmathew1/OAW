@@ -141,7 +141,7 @@ class MainWindow(QMainWindow):
         widget = QWidget()
         form = QFormLayout(widget)
         form.setContentsMargins(16, 20, 16, 20)
-        form.setSpacing(14)
+        form.setSpacing(12)
 
         self.login_user_input = QLineEdit("edrin")
         self.login_pass_input = QLineEdit("Password123!")
@@ -156,46 +156,19 @@ class MainWindow(QMainWindow):
         btn_login.clicked.connect(self._handle_inapp_login)
         form.addRow(btn_login)
 
-        return widget
-
-    def _build_register_form(self) -> QWidget:
-        widget = QWidget()
-        form = QFormLayout(widget)
-        form.setContentsMargins(12, 12, 12, 12)
-        form.setSpacing(8)
-
-        self.reg_name_input = QLineEdit()
-        self.reg_name_input.setPlaceholderText("e.g. Edrin Mathew")
-
-        self.reg_user_input = QLineEdit()
-        self.reg_user_input.setPlaceholderText("e.g. edrin_dev")
-
-        self.reg_email_input = QLineEdit()
-        self.reg_email_input.setPlaceholderText("e.g. edrin@oaw.io")
-
-        self.reg_pass_input = QLineEdit()
-        self.reg_pass_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.reg_pass_input.setPlaceholderText("Min 6 chars (digit & special char)")
-
-        self.reg_phone_input = QLineEdit()
-        self.reg_phone_input.setPlaceholderText("10-digit phone number")
-
-        self.reg_dev_input = QLineEdit()
-        self.reg_dev_input.setPlaceholderText("DEV-XXXX (e.g. DEV-1001)")
-
-        form.addRow("Full Name:", self.reg_name_input)
-        form.addRow("Username:", self.reg_user_input)
-        form.addRow("Email:", self.reg_email_input)
-        form.addRow("Password:", self.reg_pass_input)
-        form.addRow("Phone:", self.reg_phone_input)
-        form.addRow("Dev Key:", self.reg_dev_input)
-
-        btn_register = QPushButton("Create Account")
-        btn_register.setObjectName("sendBtn")
-        btn_register.clicked.connect(self._handle_inapp_registration)
-        form.addRow(btn_register)
+        btn_guest = QPushButton("🚀 Quick Guest Access")
+        btn_guest.setObjectName("actionBtn")
+        btn_guest.clicked.connect(self._handle_guest_login)
+        form.addRow(btn_guest)
 
         return widget
+
+    def _handle_guest_login(self) -> None:
+        self.user_name = "Edrin Mathew"
+        self.auth_error_label.setVisible(False)
+        self.chat.clear()
+        self._append_chat("agent", f"Hello {self.user_name}, how can I help you?")
+        self.stack.setCurrentIndex(1)
 
     def _handle_inapp_login(self) -> None:
         user = self.login_user_input.text().strip()
@@ -218,6 +191,9 @@ class MainWindow(QMainWindow):
 
         except ValidationError as ve:
             self.auth_error_label.setText(f"❌ {str(ve)}")
+            self.auth_error_label.setVisible(True)
+        except Exception as e:
+            self.auth_error_label.setText(f"❌ Error: {str(e)}")
             self.auth_error_label.setVisible(True)
 
     def _handle_inapp_registration(self) -> None:
@@ -252,6 +228,10 @@ class MainWindow(QMainWindow):
         except ValidationError as ve:
             self.auth_error_label.setText(f"❌ {str(ve)}")
             self.auth_error_label.setVisible(True)
+        except Exception as e:
+            self.auth_error_label.setText(f"❌ Error: {str(e)}")
+            self.auth_error_label.setVisible(True)
+
 
     # ── Screen 1: Agent View ─────────────────────────────────────────────
 
