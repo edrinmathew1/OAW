@@ -562,8 +562,16 @@ class MainWindow(QMainWindow):
 
     def _on_result(self, result: dict) -> None:
         if result.get("tool_result"):
-            self._append_chat("tool", f"**{result['tool_used']}**\n{result['tool_result']}")
+            # Route raw tool output to Execution Trace side-panel for full observability
+            tool_name = result.get("tool_used", "Tool")
+            tool_res = str(result.get("tool_result"))
+            preview = tool_res[:400] + "..." if len(tool_res) > 400 else tool_res
+            self._append_trace(
+                f'<span style="color:#34d399;font-weight:600">[{tool_name}] Observation:</span><br>'
+                f'<span style="color:#cbd5e1;font-size:11px;">{preview}</span>'
+            )
         self._append_chat("agent", result["response"])
+
 
     def _on_done(self) -> None:
         self.worker = None
