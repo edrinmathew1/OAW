@@ -21,6 +21,9 @@ try:
     PYQT_AVAILABLE = True
 except ImportError:
     PYQT_AVAILABLE = False
+    QDialog = object
+    QWidget = object
+
 
 
 USER_FILE = os.path.join(os.path.dirname(__file__), "data", "users.json")
