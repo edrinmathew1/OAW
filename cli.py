@@ -69,11 +69,14 @@ class MainWindow(QMainWindow):
 
     def _init_tools(self) -> None:
         """Instantiate concrete tools inheriting from AgentTool."""
+        from tools.base import AgentTool
+        AgentTool.registry.clear()
         WebSearchTool()
         MemoryTool()
         CodeExecutionTool()
         APICallerTool()
         FileManagementTool()
+
 
     # ── UI Construction ──────────────────────────────────────────────────
 

@@ -1,7 +1,5 @@
-# ─────────────────────────────────────────────
 #  main.py — Primary Entry Point for OAW Desktop Application
 #  Flow: Launches AuthDialog (Requirement #2) -> Launches MainWindow (Requirement #3)
-# ─────────────────────────────────────────────
 
 import sys
 from PyQt6.QtWidgets import QApplication, QDialog
@@ -13,6 +11,9 @@ def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
+    # Prevent Qt from quitting when AuthDialog closes before MainWindow is shown
+    app.setQuitOnLastWindowClosed(False)
+
     # Step 1: Launch Authentication Dialog (Requirement #2)
     auth_dialog = AuthDialog()
     if auth_dialog.exec() == QDialog.DialogCode.Accepted:
@@ -20,6 +21,7 @@ def main():
         # Step 2: Launch Main Application (Requirement #3)
         window = MainWindow(user_name=user_name)
         window.show()
+        app.setQuitOnLastWindowClosed(True)
         sys.exit(app.exec())
     else:
         sys.exit(0)
