@@ -6,7 +6,8 @@ load_dotenv()
 
 # Ollama endpoint and model
 OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
-MODEL: str = os.getenv("OLLAMA_MODEL", os.getenv("MODEL", "qwen2.5:7b"))
+MODEL: str = os.getenv("OLLAMA_MODEL", os.getenv("MODEL", "qwen2.5:3b"))
+
 
 # Agent identity
 AGENT_NAME: str = os.getenv("AGENT_NAME", "Observable Agent")

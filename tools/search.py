@@ -23,8 +23,9 @@ class WebSearchTool(AgentTool):
         super().__init__(
             name="Web Search Tool",
             description="Search the web or Wikipedia public API for real-time information",
-            trigger_pattern=r"\b(search|find|who is|what is|where is|latest|lookup)\b"
+            trigger_pattern=r"\b(search|find|who|who's|who is|what|whats|what's|what is|where|where's|where is|when|why|how|latest|lookup|weather|news|score|price|tell me|info)\b"
         )
+
 
     def _query_wikipedia_api(self, query: str) -> dict:
         """Fetch summary from Wikipedia REST API and process dictionary response."""
