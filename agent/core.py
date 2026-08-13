@@ -40,13 +40,15 @@ class ObservableAgent:
         # Live reference to registered tools
         self.tools: list[AgentTool] = ToolRegistry.all()
         if not self.tools:
-            from tools import WebSearchTool, MemoryTool, CodeExecutionTool, APICallerTool, FileManagementTool
+            from tools import WebSearchTool, MemoryTool, CodeExecutionTool, APICallerTool, FileManagementTool, AppLauncherTool
             WebSearchTool()
             MemoryTool()
             CodeExecutionTool()
             APICallerTool()
             FileManagementTool()
+            AppLauncherTool()
             self.tools = ToolRegistry.all()
+
 
 
         # Conversation history sent to the LLM on every turn

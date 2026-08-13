@@ -23,8 +23,9 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QTextCursor, QKeyEvent, QCloseEvent
 
 from agent.core import ObservableAgent
-from tools import WebSearchTool, MemoryTool, CodeExecutionTool, APICallerTool, FileManagementTool
+from tools import WebSearchTool, MemoryTool, CodeExecutionTool, APICallerTool, FileManagementTool, AppLauncherTool
 from auth import AuthValidator, ValidationError, load_users, save_users
+
 
 
 # ─────────────────────────────────────────────
@@ -74,6 +75,8 @@ class MainWindow(QMainWindow):
         CodeExecutionTool()
         APICallerTool()
         FileManagementTool()
+        AppLauncherTool()
+
 
     # ── UI Construction ──────────────────────────────────────────────────
 
